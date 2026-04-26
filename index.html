@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wo ist Maya?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { 
+      margin: 0; 
+      padding: 0; 
+      background: linear-gradient(135deg, #1a1812 0%, #2a2416 100%);
+      color: #eaedf2; 
+      font-family: 'Inter', system-ui, sans-serif; 
+      min-height: 100vh;
+    }
+    #root {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    input::placeholder, textarea::placeholder { color: inherit; opacity: 0.4; }
+    
+    @keyframes fn-flip-in { 
+      from { opacity: 0; transform: translateY(14px) scale(0.96); } 
+      to { opacity: 1; transform: translateY(0) scale(1); } 
+    }
+    @keyframes fn-stamp-drop { 
+      0% { opacity: 0; transform: rotate(0deg) scale(2.2); } 
+      60% { opacity: 1; transform: rotate(0deg) scale(0.92); } 
+      100% { opacity: 1; transform: rotate(0deg) scale(1); } 
+    }
+    .fn-flip-in { animation: fn-flip-in 0.5s ease-out; }
+    .fn-stamp-drop { animation: fn-stamp-drop 0.55s cubic-bezier(.2,1.2,.4,1); }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Field Notes v2 system -->
+  <script type="text/babel" src="fn/atoms.jsx"></script>
+  <script type="text/babel" src="fn/verify.jsx"></script>
+  <script type="text/babel" src="fn/content.jsx"></script>
+  <script type="text/babel" src="fn/screens.jsx"></script>
+  <script type="text/babel" src="data.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ───────────────────────────────────────────
+    // Main PlayerApp — Full Game Flow
+    // ───────────────────────────────────────────
+    function PlayerApp() {
+      const [screen, setScreen] = useState("start");
+      const [teamName, setTeamName] = useState("Sekundarschule 3a");
+      const [completed, setCompleted] = useState([]);
+      const [seconds, setSeconds] = useState(60 * 60);
+      const [chapterStart, setChapterStart] = useState(null);
+
+      // Timer ticks while playing
+      useEffect(() => {
+        if (screen === "start") return;
+        const iv = setInterval(() => setSeconds(s => Math.max(0, s - 1)), 1000);
+        return () => clearInterval(iv);
+      }, [screen]);
+
+      const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+      const ss = String(seconds % 60).padStart(2, "0");
+      const timer = `${mm}:${ss}`;
+
+      const elapsed = 60 * 60 - seconds;
+      const chapterElapsedMin = chapterStart != null ? (elapsed - chapterStart) / 60 : 0;
+      let hintsUnlocked = 0;
+      if (chapterElapsedMin >= 3) hintsUnlocked = 1;
+      if (chapterElapsedMin >= 6) hintsUnlocked = 2;
+      if (chapterElapsedMin >= 9) hintsUnlocked = 3;
+
+      const S = window.FN_SCREENS;
+      const CHAPTERS = window.FN_DATA.CHAPTERS;
+      const TRACKS = window.FN_DATA.TRACKS;
+
+      // Derive current chapter id
+      const chapterId = screen.startsWith("chapter:") ? screen.slice("chapter:".length)
+                      : screen.startsWith("transition:") ? screen.slice("transition:".length) : null;
+      const chapter = chapterId ? CHAPTERS[chapterId] : null;
+
+      return (
+        <div style={{
+          width: "100%",
+          maxWidth: "600px",
+          background: "rgba(26, 24, 18, 0.95)",
+          borderRadius: "12px",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.8)",
+          border: "1px solid rgba(233, 196, 106, 0.2)",
+          backdropFilter: "blur(10px)",
+          overflow: "hidden",
+          minHeight: "600px"
+        }}>
+          {screen === "start" && (
+            <S.FNStart
+              teamName={teamName}
+              setTeamName={setTeamName}
+              onStart={() => setScreen("intro")}
+            />
+          )}
+          {screen === "intro" && (
+            <S.FNIntro onDone={() => setScreen("tutorial")} />
+          )}
+          {screen === "tutorial" && (
+            <S.FNTutorial onDone={() => setScreen("hub")} />
+          )}
+          {screen === "hub" && (
+            <S.FNHub
+              timer={timer}
+              teamName={teamName}
+              completed={completed}
+              tracks={TRACKS}
+              onPick={(id) => {
+                const idx = TRACKS.findIndex(t => t.id === id);
+                const canEnter = completed.includes(id) || idx === completed.length;
+                if (canEnter) {
+                  setChapterStart(elapsed);
+                  setScreen("chapter:" + id);
+                }
+              }}
+            />
+          )}
+          {screen.startsWith("chapter:") && chapter && (
+            <S.FNChapter
+              chapter={chapter}
+              timer={timer}
+              hintsUnlocked={hintsUnlocked}
+              onBack={() => setScreen("hub")}
+              onComplete={(id) => {
+                if (!completed.includes(id)) setCompleted([...completed, id]);
+                setScreen("transition:" + id);
+              }}
+            />
+          )}
+          {screen.startsWith("transition:") && chapter && (
+            <S.FNTransition
+              chapter={chapter}
+              onNext={() => {
+                if (completed.length >= TRACKS.length) setScreen("ending");
+                else setScreen("hub");
+              }}
+            />
+          )}
+          {screen === "ending" && (
+            <S.FNEnding onReplay={() => {
+              setCompleted([]);
+              setSeconds(60 * 60);
+              setScreen("start");
+            }}/>
+          )}
+        </div>
+      );
+    }
+
+    // Wait for all modules to load
+    function boot() {
+      if (!window.FN || !window.FN_DATA || !window.FN_VERIFY || !window.FN_SCREENS) {
+        setTimeout(boot, 30);
+        return;
+      }
+      // Inject animations
+      if (window.FN.ANIMS) {
+        const style = document.createElement("style");
+        style.textContent = window.FN.ANIMS;
+        document.head.appendChild(style);
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(<PlayerApp/>);
+    }
+    boot();
+  </script>
+</body>
+</html>
