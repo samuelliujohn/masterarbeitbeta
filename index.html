@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wo ist Maya? v2</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Wo ist Maya? <span>v2</span></h1>
+      <p class="subtitle">Interaktive Lernapp für räumliches Denken, Sprache und Problemlösen</p>
+    </header>
+
+    <main class="layout">
+      <section class="card story-card">
+        <h2>Story-Modus</h2>
+        <p>
+          Maya ist verschwunden. Löse Aufgaben aus drei Lernbereichen und sammle Hinweise, um ihren Standort zu finden.
+        </p>
+        <div class="progress-wrap">
+          <label for="progress">Fortschritt</label>
+          <progress id="progress" max="100" value="0"></progress>
+          <strong id="progressText">0%</strong>
+        </div>
+        <button id="resetBtn" class="secondary">Neu starten</button>
+      </section>
+
+      <section class="card game-card">
+        <div class="top-row">
+          <h2 id="taskTitle">Aufgabe 1</h2>
+          <span id="badge" class="badge">Hinweise: 0/3</span>
+        </div>
+        <p id="taskPrompt" class="prompt"></p>
+
+        <form id="answerForm" class="answer-form">
+          <div id="answers" class="answers"></div>
+          <button type="submit" id="submitBtn">Antwort prüfen</button>
+        </form>
+
+        <div id="feedback" class="feedback" aria-live="polite"></div>
+      </section>
+
+      <section class="card clues-card">
+        <h2>Gesammelte Hinweise</h2>
+        <ol id="clueList"></ol>
+      </section>
+    </main>
+
+    <template id="resultTemplate">
+      <section class="card result-card">
+        <h2>🎉 Maya gefunden!</h2>
+        <p id="resultText"></p>
+        <p class="next-step">
+          Tipp: Du kannst jetzt neue Aufgaben eintragen und die App als Prototyp in deiner Masterarbeit dokumentieren.
+        </p>
+      </section>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
