@@ -24,7 +24,8 @@
       min-height: 100vh;
       padding: 20px;
     }
-    input::placeholder, textarea::placeholder { color: inherit; opacity: 0.4; }
+    input::placeholder { color: inherit; opacity: 0.4; }
+    input { font-size: 16px; }
     
     @keyframes fn-flip-in { 
       from { opacity: 0; transform: translateY(14px) scale(0.96); } 
@@ -39,26 +40,514 @@
     .fn-stamp-drop { animation: fn-stamp-drop 0.55s cubic-bezier(.2,1.2,.4,1); }
   </style>
 
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
 
-  <!-- Field Notes v2 system -->
-  <script type="text/babel" src="fn/atoms.jsx"></script>
-  <script type="text/babel" src="fn/verify.jsx"></script>
-  <script type="text/babel" src="fn/content.jsx"></script>
-  <script type="text/babel" src="fn/screens.jsx"></script>
-  <script type="text/babel" src="data.jsx"></script>
-
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // ───────────────────────────────────────────
-    // Main PlayerApp — Full Game Flow
-    // ───────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════
+    // ATOMS — UI Components
+    // ═══════════════════════════════════════════════════════════════
+    function Button({ children, onClick, variant = "primary", size = "md", disabled = false, style = {} }) {
+      const baseStyle = {
+        padding: size === "sm" ? "6px 12px" : size === "lg" ? "12px 20px" : "8px 16px",
+        fontSize: size === "sm" ? "12px" : size === "lg" ? "15px" : "13px",
+        fontWeight: "600",
+        border: "none",
+        borderRadius: "4px",
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "all 0.2s",
+        opacity: disabled ? 0.5 : 1,
+        ...style,
+      };
+      const colors = {
+        primary: { background: "#f4a261", color: "#1a1812" },
+        secondary: { background: "transparent", border: "1px solid #e9c46a", color: "#e9c46a" },
+        tertiary: { background: "transparent", border: "1px solid #eaedf2", color: "#eaedf2" },
+      };
+      const color = colors[variant] || colors.primary;
+      return <button style={{ ...baseStyle, ...color }} onClick={onClick} disabled={disabled}>{children}</button>;
+    }
+
+    function Card({ children, style = {} }) {
+      return (
+        <div style={{
+          background: "rgba(26, 24, 18, 0.8)",
+          border: "1px solid rgba(234, 205, 106, 0.2)",
+          borderRadius: "6px",
+          padding: "16px",
+          marginBottom: "12px",
+          backdropFilter: "blur(4px)",
+          ...style,
+        }} className="fn-flip-in">{children}</div>
+      );
+    }
+
+    function Timer({ time }) {
+      return (
+        <div style={{
+          fontSize: "20px",
+          fontWeight: "700",
+          fontFamily: "'Courier New', monospace",
+          color: "#f4a261",
+          textAlign: "center",
+          padding: "12px",
+          background: "rgba(244, 162, 97, 0.1)",
+          borderRadius: "4px",
+          border: "1px solid rgba(244, 162, 97, 0.2)",
+        }}>⏱️ {time}</div>
+      );
+    }
+
+    function Alert({ title, body, type = "info" }) {
+      const colors = {
+        info: { bg: "rgba(41, 128, 185, 0.1)", border: "#2980b9" },
+        success: { bg: "rgba(46, 204, 113, 0.1)", border: "#2ecc71" },
+        warning: { bg: "rgba(241, 196, 15, 0.1)", border: "#f1c40f" },
+        error: { bg: "rgba(231, 76, 60, 0.1)", border: "#e74c3c" },
+      };
+      const color = colors[type] || colors.info;
+      return (
+        <div style={{ background: color.bg, border: `1px solid ${color.border}`, borderRadius: "4px", padding: "12px", marginBottom: "12px", fontSize: "12px" }}>
+          {title && <div style={{ fontWeight: "600", marginBottom: "4px" }}>{title}</div>}
+          <div>{body}</div>
+        </div>
+      );
+    }
+
+    function Hint({ title, body }) {
+      const [open, setOpen] = useState(false);
+      return (
+        <div style={{
+          background: "rgba(233, 196, 106, 0.1)",
+          border: "1px solid rgba(233, 196, 106, 0.3)",
+          borderRadius: "4px",
+          padding: "8px",
+          marginBottom: "8px",
+          cursor: "pointer",
+        }} onClick={() => setOpen(!open)}>
+          <div style={{ fontSize: "12px", fontWeight: "600", color: "#e9c46a" }}>
+            {open ? "▼" : "▶"} {title}
+          </div>
+          {open && <div style={{ fontSize: "12px", marginTop: "6px", opacity: 0.8 }}>{body}</div>}
+        </div>
+      );
+    }
+
+    function Progress({ current, total }) {
+      const percent = (current / total) * 100;
+      return (
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{ fontSize: "11px", marginBottom: "4px", opacity: 0.6" }}>{current} / {total}</div>
+          <div style={{ height: "6px", background: "rgba(233, 196, 106, 0.1)", borderRadius: "3px", overflow: "hidden" }}>
+            <div style={{ height: "100%", background: "#e9c46a", width: `${percent}%`, transition: "width 0.3s" }} />
+          </div>
+        </div>
+      );
+    }
+
+    function Input({ placeholder, value, onChange, type = "text" }) {
+      return (
+        <input
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px",
+            marginBottom: "8px",
+            background: "rgba(26, 24, 18, 0.8)",
+            border: "1px solid rgba(233, 196, 106, 0.3)",
+            borderRadius: "4px",
+            color: "#eaedf2",
+            fontSize: "13px",
+            fontFamily: "inherit",
+          }}
+        />
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // VERIFY — Puzzle Types
+    // ═══════════════════════════════════════════════════════════════
+    function VerifyCode({ puzzle, onSuccess }) {
+      const [input, setInput] = useState("");
+      const [error, setError] = useState(false);
+      const [solved, setSolved] = useState(false);
+
+      const check = () => {
+        if (input === puzzle.answer) {
+          setSolved(true);
+          onSuccess();
+        } else {
+          setError(true);
+          setTimeout(() => setError(false), 500);
+        }
+      };
+
+      return (
+        <div>
+          {error && <Alert type="error" title="Falsch" body="Code nicht korrekt. Versuche nochmal." />}
+          {solved && <Alert type="success" title="Richtig!" body={puzzle.success || "Gelöst!"} />}
+          {!solved && (
+            <div>
+              <Input placeholder={puzzle.placeholder || "Eingabe"} value={input} onChange={setInput} type="text" />
+              <Button onClick={check} variant="primary" style={{ width: "100%" }}>Überprüfen</Button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Verifier({ type = "code", puzzle, onSuccess }) {
+      if (type === "code") return <VerifyCode puzzle={puzzle} onSuccess={onSuccess} />;
+      return <div>Unbekannter Typ: {type}</div>;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONTENT — Card Renderers
+    // ═══════════════════════════════════════════════════════════════
+    function StoryCard({ card, onAction }) {
+      return (
+        <Card>
+          <div style={{ marginBottom: "8px" }}>
+            <div style={{ fontSize: "12px", opacity: 0.6, marginBottom: "4px" }}>📖 GESCHICHTE</div>
+            <div style={{ fontSize: "16px", fontWeight: "700" }}>{card.title}</div>
+            {card.time && <div style={{ fontSize: "11px", opacity: 0.5, marginTop: "4px" }}>⏰ {card.time}</div>}
+          </div>
+          <div style={{ fontSize: "13px", lineHeight: "1.6", margin: "12px 0", whiteSpace: "pre-wrap" }}>{card.body}</div>
+          {card.action && <Button onClick={onAction} variant="primary" style={{ width: "100%", marginTop: "12px" }}>→ {card.action}</Button>}
+        </Card>
+      );
+    }
+
+    function InfoCard({ card }) {
+      return (
+        <Card>
+          <div style={{ marginBottom: "8px" }}>
+            <div style={{ fontSize: "12px", opacity: 0.6, marginBottom: "4px" }}>ℹ️ INFO</div>
+            <div style={{ fontSize: "16px", fontWeight: "700" }}>{card.title}</div>
+            {card.subtitle && <div style={{ fontSize: "11px", color: "#e9c46a", marginTop: "4px" }}>{card.subtitle}</div>}
+          </div>
+          <div style={{
+            fontSize: "13px",
+            lineHeight: "1.6",
+            margin: "12px 0",
+            whiteSpace: "pre-wrap",
+            fontFamily: "monospace",
+            background: "#1a1812",
+            padding: "8px",
+            borderRadius: "4px",
+            overflow: "auto",
+          }}>{card.body}</div>
+          {card.meta && <div style={{ fontSize: "11px", opacity: 0.5, marginTop: "8px" }}>📌 {card.meta}</div>}
+        </Card>
+      );
+    }
+
+    function EventCard({ card, onChoice }) {
+      return (
+        <Card>
+          <div style={{ marginBottom: "8px" }}>
+            <div style={{ fontSize: "12px", opacity: 0.6, marginBottom: "4px" }}>🔔 EREIGNIS</div>
+            <div style={{ fontSize: "16px", fontWeight: "700" }}>{card.title}</div>
+            {card.subtitle && <div style={{ fontSize: "11px", color: "#e9c46a", marginTop: "4px" }}>{card.subtitle}</div>}
+          </div>
+          <div style={{ fontSize: "13px", lineHeight: "1.6", margin: "12px 0", whiteSpace: "pre-wrap" }}>{card.body}</div>
+          {card.choices && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
+              {card.choices.map((choice, i) => (
+                <Button key={i} onClick={() => onChoice(i)} variant="secondary" style={{ width: "100%" }}>{choice}</Button>
+              ))}
+            </div>
+          )}
+        </Card>
+      );
+    }
+
+    function PuzzleCard({ card, hints, hintsUnlocked, onComplete }) {
+      const [solved, setSolved] = useState(false);
+      return (
+        <Card>
+          <div style={{ marginBottom: "8px" }}>
+            <div style={{ fontSize: "12px", opacity: 0.6, marginBottom: "4px" }}>🔐 RÄTSEL</div>
+            <div style={{ fontSize: "16px", fontWeight: "700" }}>{card.title}</div>
+            {card.subtitle && <div style={{ fontSize: "11px", color: "#e9c46a", marginTop: "4px" }}>{card.subtitle}</div>}
+          </div>
+          <div style={{ fontSize: "13px", lineHeight: "1.6", margin: "12px 0", whiteSpace: "pre-wrap" }}>{card.body}</div>
+          <Verifier type={card.verifyType || "code"} puzzle={card} onSuccess={() => {
+            setSolved(true);
+            onComplete?.();
+          }} />
+          {!solved && hints && hintsUnlocked > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              {hints.slice(0, hintsUnlocked).map((hint, i) => (
+                <Hint key={i} title={hint.title} body={hint.body} />
+              ))}
+            </div>
+          )}
+        </Card>
+      );
+    }
+
+    function CardRenderer({ card, hints, hintsUnlocked, onAction, onChoice, onComplete }) {
+      switch (card.type) {
+        case "story": return <StoryCard card={card} onAction={onAction} />;
+        case "info": return <InfoCard card={card} />;
+        case "event": return <EventCard card={card} onChoice={onChoice} />;
+        case "puzzle": return <PuzzleCard card={card} hints={hints} hintsUnlocked={hintsUnlocked} onComplete={onComplete} />;
+        default: return <Card>Unbekannter Kartentyp: {card.type}</Card>;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SCREENS — Game Pages
+    // ═══════════════════════════════════════════════════════════════
+    function FNStart({ teamName, setTeamName, onStart }) {
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "24px", fontWeight: "700", marginBottom: "12px" }}>📁 Wo ist Maya?</div>
+            <div style={{ fontSize: "13px", opacity: 0.7, marginBottom: "24px" }}>Ein hybrider Escape Room über Nachhaltigkeit in Speicher</div>
+            <div style={{ fontSize: "12px", marginBottom: "8px" }}>Euer Teamname:</div>
+            <Input placeholder="z.B. Sekundarschule 3a" value={teamName} onChange={setTeamName} />
+          </div>
+          <Button onClick={onStart} variant="primary" style={{ width: "100%" }}>→ Akte öffnen</Button>
+        </div>
+      );
+    }
+
+    function FNIntro({ onDone }) {
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column", overflow: "auto" }}>
+          <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "12px" }}>📱 Mayas Nachrichten</div>
+          <Card>
+            <div style={{ fontSize: "12px", opacity: 0.6, marginBottom: "8px" }}>Letzte Nachricht</div>
+            <div style={{ fontSize: "12px", lineHeight: "1.6", whiteSpace: "pre-wrap", marginBottom: "12px" }}>
+              Ich hab etwas herausgefunden. Schau im Dorf nach. Fang beim Bahnhof an. Vertrau niemandem aus der Gemeinderats-Sitzung. M.
+            </div>
+            <div style={{ fontSize: "11px", opacity: 0.5" }}>23:47</div>
+          </Card>
+          <div style={{ flex: 1 }} />
+          <Button onClick={onDone} variant="primary" style={{ width: "100%" }}>→ Weiter</Button>
+        </div>
+      );
+    }
+
+    function FNTutorial({ onDone }) {
+      const [step, setStep] = useState(0);
+      const steps = [
+        { icon: "📖", title: "Geschichtenkarten", body: "Folge Mayas Weg durch das Dorf. Jede Karte verrät dir etwas über ihren Fall." },
+        { icon: "ℹ️", title: "Infokarten", body: "Sammle Hinweise und Beweise. Diese Karten haben die Daten, die du brauchst." },
+        { icon: "🔐", title: "Rätsel", body: "Löse Rätsel um Codes zu knacken. Du hast 60 Minuten – nutze Tipps weise!" },
+      ];
+      const current = steps[step];
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "28px", marginBottom: "12px" }}>{current.icon}</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "12px" }}>{current.title}</div>
+            <div style={{ fontSize: "13px", lineHeight: "1.6" }}>{current.body}</div>
+          </div>
+          <div>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+              {steps.map((_, i) => (
+                <div key={i} style={{ height: "6px", flex: 1, background: i === step ? "#e9c46a" : "rgba(233, 196, 106, 0.2)", borderRadius: "3px" }} />
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button onClick={() => setStep(Math.max(0, step - 1))} variant="secondary" disabled={step === 0} style={{ flex: 1 }}>← Zurück</Button>
+              <Button onClick={() => (step < steps.length - 1 ? setStep(step + 1) : onDone())} variant="primary" style={{ flex: 1 }}>
+                {step < steps.length - 1 ? "Weiter →" : "Starten →"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function FNHub({ timer, teamName, completed, tracks, onPick }) {
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column" }}>
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ fontSize: "14px", fontWeight: "600" }}>{teamName}</div>
+            <Timer time={timer} />
+          </div>
+          <div style={{ fontSize: "13px", marginBottom: "12px" }}>Spuren:</div>
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {tracks.map((track, i) => {
+              const isCompleted = completed.includes(track.id);
+              const isLocked = i > completed.length && !isCompleted;
+              return (
+                <Card key={track.id}>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <div style={{ fontSize: "28px" }}>{track.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: "600" }}>{track.glyph} · {track.title}</div>
+                      <div style={{ fontSize: "12px", opacity: 0.7, marginBottom: "6px" }}>{track.theme}</div>
+                      <div style={{ fontSize: "11px", opacity: 0.6 }}>{track.teaser}</div>
+                      {isCompleted && <div style={{ fontSize: "11px", color: "#2ecc71", marginTop: "6px" }}>✓ Gelöst</div>}
+                    </div>
+                  </div>
+                  <Button onClick={() => onPick(track.id)} variant="primary" size="sm" style={{ width: "100%", marginTop: "8px" }} disabled={isLocked}>
+                    {isCompleted ? "Nochmal spielen" : isLocked ? "🔒 Gesperrt" : "Öffnen →"}
+                  </Button>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function FNChapter({ chapter, timer, hintsUnlocked, onBack, onComplete }) {
+      const [cardIdx, setCardIdx] = useState(0);
+      const currentCard = chapter.cards?.[cardIdx];
+      const hints = chapter.hints || [];
+
+      const nextCard = () => {
+        if (cardIdx < chapter.cards.length - 1) {
+          setCardIdx(cardIdx + 1);
+        } else {
+          onComplete(chapter.id);
+        }
+      };
+
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <Button onClick={onBack} variant="tertiary" size="sm">← Zurück</Button>
+            <Timer time={timer} />
+          </div>
+          <Progress current={cardIdx + 1} total={chapter.cards?.length || 1} />
+          <div style={{ flex: 1, overflowY: "auto", marginBottom: "12px" }}>
+            {currentCard && (
+              <CardRenderer
+                card={currentCard}
+                hints={hints}
+                hintsUnlocked={hintsUnlocked}
+                onAction={nextCard}
+                onChoice={nextCard}
+                onComplete={nextCard}
+              />
+            )}
+          </div>
+          <Button onClick={nextCard} variant="primary" style={{ width: "100%" }}>
+            {cardIdx < chapter.cards.length - 1 ? "Weiter →" : "Abschließen →"}
+          </Button>
+        </div>
+      );
+    }
+
+    function FNTransition({ chapter, onNext }) {
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div className="fn-stamp-drop">
+            <div style={{ fontSize: "48px", textAlign: "center", marginBottom: "12px" }}>✓</div>
+            <div style={{ fontSize: "20px", fontWeight: "700", textAlign: "center", marginBottom: "8px" }}>{chapter.title}</div>
+            <div style={{ fontSize: "13px", opacity: 0.7, textAlign: "center" }}>abgeschlossen</div>
+          </div>
+          <Button onClick={onNext} variant="primary" style={{ width: "100%" }}>→ Nächste Spur</Button>
+        </div>
+      );
+    }
+
+    function FNEnding({ onReplay }) {
+      return (
+        <div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "24px", fontWeight: "700", marginBottom: "12px" }}>🏁 Akte geschlossen</div>
+            <Card>
+              <div style={{ fontSize: "13px", lineHeight: "1.6" }}>
+                Du hast Maya gefunden. Aber der Fall ist nicht vorbei. Deine Beweise werden in der Gemeinderatssitzung am Freitag gebraucht – um das Gaskraftwerk-Projekt zu stoppen.
+              </div>
+            </Card>
+          </div>
+          <Button onClick={onReplay} variant="primary" style={{ width: "100%" }}>🔄 Nochmal spielen</Button>
+        </div>
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DATA & MAIN APP
+    // ═══════════════════════════════════════════════════════════════
+    const TRACKS = [
+      { id: "bahnhof", icon: "🚆", glyph: "I", title: "Bahnhof", theme: "Mobilität", teaser: "Maya ist nicht mit dem Auto gekommen. Welche Route hat sie genommen – und warum genau diese?" },
+      { id: "supermarkt", icon: "🛒", glyph: "II", title: "Supermarkt", theme: "Konsum", teaser: "Ein Kassenbon in einem Briefkasten. 5 Produkte – eines passt nicht." },
+      { id: "wald", icon: "🌿", glyph: "III", title: "Wald", theme: "Biodiversität", teaser: "Mayas Notizbuch am Waldrand. Skizzen, Beobachtungen – und eine beunruhigende Notiz." },
+      { id: "wohngebiet", icon: "🏠", glyph: "IV", title: "Wohngebiet", theme: "Wohnen", teaser: "Eine Adresse. Eine ältere Person. Eine Heizrechnung, die explodiert ist." },
+      { id: "holzkraftwerk", icon: "⚡", glyph: "V", title: "Holzkraftwerk", theme: "Energie", teaser: "Mayas letzter bekannter Aufenthaltsort. Ihre Recherche liegt hier versteckt." },
+    ];
+
+    const CHAPTER_BAHNHOF = {
+      id: "bahnhof",
+      title: "Spur I — Bahnhof",
+      theme: "Mobilität",
+      cards: [
+        {
+          type: "story",
+          title: "Am Bahnhof",
+          time: "08:14",
+          body: `Der Bahnhof ist fast leer. Auf Gleis 1 hält gerade der Zug nach St. Gallen. Du suchst das Schwarze Brett ab, die Bänke, den Fahrkartenautomaten.
+
+Dann – zwischen zwei Aushängen der Appenzeller Bahnen – ein gefalteter Fahrplan. Handschrift. Mayas Handschrift.`,
+          action: "Fahrplan öffnen"
+        },
+        {
+          type: "info",
+          title: "Mayas Fahrplan",
+          subtitle: "Informationskarte · Mobilität",
+          body: `Maya hat drei Routen nach Speicher verglichen – von ihrem Zuhause in Teufen aus:
+
+ROUTE A · Auto (privat)
+  19 km · 24 min · ca. 2.9 kg CO₂
+
+ROUTE B · Postauto + Bahn
+  über Bühler → Speicher
+  42 min · ca. 0.4 kg CO₂
+
+ROUTE C · E-Bike
+  über Wiesen-Route
+  55 min · 0.0 kg CO₂ · 340 kcal
+
+Notiz am Rand: „Ich nehm was zählt – nicht was schnell ist."`,
+          meta: "Fundort: Schwarzes Brett, Bahnhof Speicher"
+        },
+        {
+          type: "event",
+          title: "Durchsage",
+          subtitle: "Ereigniskarte · 08:21",
+          body: `„Achtung auf Gleis 1 – der nächste Zug fährt um 08:37 Richtung Trogen."
+
+Einem Mann in einem grauen Mantel fällt ein Umschlag aus der Tasche. Er bemerkt es nicht. Auf dem Umschlag steht: „Gemeindeversammlung – vertraulich".
+
+Willst du ihn ansprechen – oder den Umschlag nehmen?`,
+          choices: ["Ansprechen (+2 min)", "Umschlag nehmen (Risiko)"]
+        },
+        {
+          type: "puzzle",
+          title: "Welche Route hat Maya genommen?",
+          subtitle: "Rätsel · Verifizierung",
+          body: `Maya hat die nachhaltigste Route gewählt. Gib die Abfahrtszeit dieser Route ein – 4 Ziffern, ohne Doppelpunkt.`,
+          verifyType: "code",
+          answer: "0725",
+          placeholder: "• • • •",
+          success: "Richtig. Maya ist um 07:25 mit dem E-Bike los."
+        }
+      ],
+      hints: [
+        { afterMinutes: 3, level: 1, title: "Tipp 1", body: "Vergleicht die drei Routen nach CO₂-Ausstoss. Welche ist am saubersten?" },
+        { afterMinutes: 6, level: 2, title: "Tipp 2", body: "Es ist die Route, die 0.0 kg CO₂ ausstösst. Schaut nach der Startzeit dieser Verbindung." },
+        { afterMinutes: 9, level: 3, title: "Lösung", body: "Route C · E-Bike · Abfahrt 07:25. Code: 0725" }
+      ]
+    };
+
     function PlayerApp() {
       const [screen, setScreen] = useState("start");
       const [teamName, setTeamName] = useState("Sekundarschule 3a");
@@ -66,7 +555,6 @@
       const [seconds, setSeconds] = useState(60 * 60);
       const [chapterStart, setChapterStart] = useState(null);
 
-      // Timer ticks while playing
       useEffect(() => {
         if (screen === "start") return;
         const iv = setInterval(() => setSeconds(s => Math.max(0, s - 1)), 1000);
@@ -84,11 +572,7 @@
       if (chapterElapsedMin >= 6) hintsUnlocked = 2;
       if (chapterElapsedMin >= 9) hintsUnlocked = 3;
 
-      const S = window.FN_SCREENS;
-      const CHAPTERS = window.FN_DATA.CHAPTERS;
-      const TRACKS = window.FN_DATA.TRACKS;
-
-      // Derive current chapter id
+      const CHAPTERS = { bahnhof: CHAPTER_BAHNHOF };
       const chapterId = screen.startsWith("chapter:") ? screen.slice("chapter:".length)
                       : screen.startsWith("transition:") ? screen.slice("transition:".length) : null;
       const chapter = chapterId ? CHAPTERS[chapterId] : null;
@@ -105,21 +589,11 @@
           overflow: "hidden",
           minHeight: "600px"
         }}>
-          {screen === "start" && (
-            <S.FNStart
-              teamName={teamName}
-              setTeamName={setTeamName}
-              onStart={() => setScreen("intro")}
-            />
-          )}
-          {screen === "intro" && (
-            <S.FNIntro onDone={() => setScreen("tutorial")} />
-          )}
-          {screen === "tutorial" && (
-            <S.FNTutorial onDone={() => setScreen("hub")} />
-          )}
+          {screen === "start" && <FNStart teamName={teamName} setTeamName={setTeamName} onStart={() => setScreen("intro")} />}
+          {screen === "intro" && <FNIntro onDone={() => setScreen("tutorial")} />}
+          {screen === "tutorial" && <FNTutorial onDone={() => setScreen("hub")} />}
           {screen === "hub" && (
-            <S.FNHub
+            <FNHub
               timer={timer}
               teamName={teamName}
               completed={completed}
@@ -135,7 +609,7 @@
             />
           )}
           {screen.startsWith("chapter:") && chapter && (
-            <S.FNChapter
+            <FNChapter
               chapter={chapter}
               timer={timer}
               hintsUnlocked={hintsUnlocked}
@@ -147,7 +621,7 @@
             />
           )}
           {screen.startsWith("transition:") && chapter && (
-            <S.FNTransition
+            <FNTransition
               chapter={chapter}
               onNext={() => {
                 if (completed.length >= TRACKS.length) setScreen("ending");
@@ -156,7 +630,7 @@
             />
           )}
           {screen === "ending" && (
-            <S.FNEnding onReplay={() => {
+            <FNEnding onReplay={() => {
               setCompleted([]);
               setSeconds(60 * 60);
               setScreen("start");
@@ -166,21 +640,7 @@
       );
     }
 
-    // Wait for all modules to load
-    function boot() {
-      if (!window.FN || !window.FN_DATA || !window.FN_VERIFY || !window.FN_SCREENS) {
-        setTimeout(boot, 30);
-        return;
-      }
-      // Inject animations
-      if (window.FN.ANIMS) {
-        const style = document.createElement("style");
-        style.textContent = window.FN.ANIMS;
-        document.head.appendChild(style);
-      }
-      ReactDOM.createRoot(document.getElementById("root")).render(<PlayerApp/>);
-    }
-    boot();
+    ReactDOM.createRoot(document.getElementById("root")).render(<PlayerApp/>);
   </script>
 </body>
 </html>
