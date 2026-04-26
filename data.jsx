@@ -3,9 +3,7 @@
 const STORY = {
   title: "Wo ist Maya?",
   subtitle: "Ein hybrider Escape Room über Nachhaltigkeit in Speicher",
-  intro: `Heute wäre der grosse Tag. Du und Maya habt wochenlang für den Protest gegen das geplante Gaskraftwerk gekämpft. 8:00 Uhr – sie sollte vor deiner Haustür stehen. Aber da ist niemand. Ihr Handy geht auf Mailbox.
-
-Nur eine kryptische Nachricht kam letzte Nacht: „Ich hab etwas herausgefunden. Schau im Dorf nach. Fang beim Bahnhof an."
+  intro: `Heute wäre der grosse Tag. Du und Maya habt wochenlang für den Protest gegen das geplante Gaskraftwerk gekämpft. 8:00 Uhr – sie sollte vor deiner Haustür stehen. Aber da ist niemand. Nur eine kryptische Nachricht kam letzte Nacht: „Ich hab etwas herausgefunden. Schau im Dorf nach. Fang beim Bahnhof an."
 
 Du schnappst dir dein Handy und machst dich auf die Suche.`,
   lastMessage: {
@@ -33,7 +31,7 @@ const TRACKS = [
     glyph: "II",
     title: "Supermarkt",
     theme: "Konsum",
-    status: "offen",
+    status: "gesperrt",
     teaser: "Ein Kassenbon in einem Briefkasten. 5 Produkte – eines passt nicht. War Maya wirklich hier?",
     location: "Volg Speicher",
     codeHint: "Welches Produkt?"
@@ -124,6 +122,7 @@ Willst du ihn ansprechen – oder den Umschlag nehmen?`,
       title: "Welche Route hat Maya genommen?",
       subtitle: "Rätsel · Verifizierung",
       body: `Maya hat die nachhaltigste Route gewählt. Gib die Abfahrtszeit dieser Route ein – 4 Ziffern, ohne Doppelpunkt.`,
+      verifyType: "code",
       answer: "0725",
       placeholder: "• • • •",
       success: "Richtig. Maya ist um 07:25 mit dem E-Bike los."
@@ -151,4 +150,15 @@ Willst du ihn ansprechen – oder den Umschlag nehmen?`,
   ]
 };
 
-Object.assign(window, { STORY, TRACKS, CHAPTER_BAHNHOF });
+// Export data
+window.FN_DATA = {
+  STORY,
+  TRACKS,
+  CHAPTERS: {
+    bahnhof: CHAPTER_BAHNHOF,
+    supermarkt: {},
+    wald: {},
+    wohngebiet: {},
+    holzkraftwerk: {}
+  }
+};
